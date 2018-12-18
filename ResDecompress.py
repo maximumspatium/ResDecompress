@@ -4,7 +4,8 @@
 '''
 import struct
 
-from GreggBits import GreggDecompress, GreggCompress
+from GreggBits    import GreggDecompress, GreggCompress
+from InstaCompOne import InstaCompDecompress
 
 
 def GetEncoding(dat):
@@ -27,6 +28,8 @@ def GetEncoding(dat):
     elif vers == 9:
         if dat[12:14] == b'\x00\x02':
             return 'GreggyBits'
+        elif dat[12:14] == b'\x00\x03':
+            return 'InstaCompOne'
         else:
             return 'UnknownCompression'
     else:
@@ -43,6 +46,11 @@ def DecompressResource(dat):
     elif encoding == 'GreggyBits':
         dst = bytearray()
         GreggDecompress(dat, dst, unpackSize=biglen, pos=12)
+        return bytes(dst)
+
+    elif encoding == 'InstaCompOne':
+        dst = bytearray()
+        InstaCompDecompress(dat, dst, unpackSize=biglen, pos=14)
         return bytes(dst)
 
     elif encoding == 'UnknownCompression':
