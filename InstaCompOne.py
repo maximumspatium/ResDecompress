@@ -33,8 +33,11 @@ lenHuffTab = {
     0b1110 : (3, 11),
     0b11110 : (3, 19),
     0b111110 : (5, 27),
+    0b1111110 : (6, 59),
     0b11111110 : (7, 123),
-    # TODO: missing items here !!!
+    0b111111110 : (8, 251),
+    0b1111111110 : (9, 507),
+    0b11111111110 : (10, 1019)
 }
 
 ''' Huffman codes for literal length.
@@ -55,22 +58,9 @@ litHuffTab = {
     0b1110101 : 13,
     0b1110110 : 14,
     0b1110111 : 15,
-    # TODO: missing items !!!
-    0b111100001 : 17,
-    0b111100011 : 19,
-    0b111100101 : 21,
-    0b111100110 : 22,
-    0b111100111 : 23,
-    0b111101001 : 25,
-    0b111101010 : 26,
-    0b111101011 : 27,
-    0b111101110 : 30,
-    0b111101111 : 31,
-    0b1111100010 : 34,
-    0b1111101000 : 40,
-    0b1111110000 : 48,
-    0b1111110001 : 49,
-    0b1111111111 : 63
+
+    0b11110 : (4, 16),
+    0b11111 : (5, 32)
 }
 
 # TODO: can that be done more quickly?
@@ -225,7 +215,7 @@ def InstaCompDecompress(src, dst, unpackSize, pos=0):
     mode = 1 # 1 - literal decoding, 0 - reference copying
 
     while dstPos < unpackSize:
-        copyCount = bs.decodehuff(lenHuffTab, 2, 8)
+        copyCount = bs.decodehuff(lenHuffTab, 2, 11)
         if copyCount > 0 or mode == 0:
             copyCount += 2
             if mode == 0:
@@ -242,7 +232,7 @@ def InstaCompDecompress(src, dst, unpackSize, pos=0):
             mode = 1
 
         else:
-            litLen = bs.decodehuff(litHuffTab, 1, 10)
+            litLen = bs.decodehuff(litHuffTab, 1, 7)
 
             for i in range(litLen):
                 dst.append(bs.getbits(8))
