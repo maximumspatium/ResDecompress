@@ -9,14 +9,11 @@ For the moment being, the code accepts only binary files as input. This can be
 easily updated to process data from streams and memory-based arrays.
 
 The following algorithms are currently supported:
-- GreggyBits
+- GreggyBits (compression/decompression)
+- InstaCompOne (decompression)
 
 Requires Python 3.
 
 ### Usage:
-    python ResDecompress.py [input file]
 
-If no input file was specified, the "Compressed" file resided in the same folder
-will be processed by default.
-
-At the end, a "Dump" file will be generated containing decompressed data.
+This project will become a part of https://github.com/elliotnunn/macresources soon.
