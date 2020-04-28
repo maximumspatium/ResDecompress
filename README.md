@@ -9,6 +9,7 @@ For the moment being, the code accepts only binary files as input. This can be
 easily updated to process data from streams and memory-based arrays.
 
 The following algorithms are currently supported:
+- DonnBits for 68k code (decompression)
 - GreggyBits (compression/decompression)
 - InstaCompOne (decompression)
 

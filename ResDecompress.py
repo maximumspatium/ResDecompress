@@ -4,6 +4,7 @@
 '''
 import struct
 
+from DonnBits     import DonnDecompress
 from GreggBits    import GreggDecompress, GreggCompress
 from InstaCompOne import InstaCompDecompress
 
@@ -23,7 +24,6 @@ def GetEncoding(dat):
     print("Uncompressed length: %d" % biglen)
 
     if vers == 8:
-        print('Donn unimplemented!'); return 'UnknownCompression'
         return 'DonnBits'
     elif vers == 9:
         if dat[12:14] == b'\x00\x02':
@@ -41,7 +41,9 @@ def DecompressResource(dat):
     sig, hdrlen, vers, attrs, biglen = struct.unpack_from(">IHBBI", dat)
 
     if encoding == 'DonnBits':
-        raise NotImplementedError('DonnBits')
+        dst = bytearray()
+        DonnDecompress(dat, dst, unpackSize=biglen, pos=12)
+        return bytes(dst)
 
     elif encoding == 'GreggyBits':
         dst = bytearray()
