@@ -1,10 +1,13 @@
 '''
-    This script implements the DonnBits decompression algorithm
-    found in the 'dcmp' 0 resource.
+    This script implements the DonnBits decompression algorithms.
+
+    Currently, only algorithm 0 found in the 'dcmp' 0 resource
+    is supported. It is used for compressing 68k code resources.
 '''
 
 import struct
 
+""" Hardcoded lookup table of most frequent 68k code words. """
 const_words_tab = (
     0x0000, 0x4EBA, 0x0008, 0x4E75, 0x000C, 0x4EAD, 0x2053, 0x2F0B,
     0x6100, 0x0010, 0x7000, 0x2F00, 0x486E, 0x2050, 0x206E, 0x2F2E,
@@ -31,17 +34,33 @@ const_words_tab = (
     0x4400, 0x41E8, 0x4841, 0x0000
 )
 
-def SignExtend(value, bits):
-    sign_bit = 1 << (bits - 1)
-    return (value & (sign_bit - 1)) - (value & sign_bit)
+def SignExtend(val, nbits):
+    """ Returns a sign-extended value for the input value.
+
+    val   - value to be sign-extended
+    nbits - number precision: 8 - byte, 16 - word etc.
+    """
+    sign_bit = 1 << (nbits - 1)
+    return (val & (sign_bit - 1)) - (val & sign_bit)
 
 
 def PutWord(dst, val):
+    """ Put big-endian val byte by byte into dst. """
     dst.append((val >> 8) & 0xFF)
     dst.append(val & 0xFF)
 
 
 def GetVarLenInt(src, pos):
+    """ Reads a variable-length integer from the input stream.
+
+    Parameters:
+    src - input bytestream
+    pos - position in the input stream to start reading at
+
+    Returns:
+    val  - obtained integer
+    size - number of bytes consumed from the input stream
+    """
     val = src[pos]
     if val < 128:
         return val, 1
@@ -65,19 +84,19 @@ def DonnDecompress(src, dst, unpackSize, pos=0):
         print("Donn algorithm %d not supported yet" % alg_id)
         return
 
-    pos += 6
+    pos += 6 # bytestream position points to compressed data
 
-    var_tab = []
+    var_tab = [] # initialize dynamic lookup table
 
     dstPos = 0
 
     while dstPos < unpackSize:
-        tok = src[pos]
+        tok = src[pos] # get next token from bytestream
         pos += 1
         #print("Got token 0x%X" % tok)
 
-        if tok <= 15:
-            if tok == 0:
+        if tok <= 15: # copy n words from src to dst
+            if tok == 0: # copy data of arbitrary length
                 length,size = GetVarLenInt(src, pos)
                 pos += size
                 length *= 2
@@ -88,53 +107,75 @@ def DonnDecompress(src, dst, unpackSize, pos=0):
                 dst.append(src[pos])
                 pos += 1
                 dstPos += 1
+
+        # put a chunk of data of arbitrary length into dynamic LUT,
+        # then copy it to dst
         elif tok == 0x10:
             length,size = GetVarLenInt(src, pos)
             length *= 2
             pos += size
             var_tab.append((src[pos:pos+length], length))
 
-            # then copy data over
             for i in range(0, length):
                 dst.append(src[pos])
                 pos += 1
                 dstPos += 1
+
+        # put a chunk of data of fixed length (drived from tok value)
+        # into dynamic LUT, then copy it to dst
         elif tok >= 0x11 and tok <= 0x1F:
             length = (tok - 0x10) * 2
-            # store stream bytes together with their length in the table
             var_tab.append((src[pos:pos+length], length))
 
-            # then copy data over
             for i in range(0, length):
                 dst.append(src[pos])
                 pos += 1
                 dstPos += 1
+
+        # copy a chunk of data from dynamic LUT to dst
+        # chunk number is a single byte that follows tok
+        # It will be adjusted to chunk_num + 40
         elif tok == 0x20:
             data, length = var_tab[src[pos] + 40]
             pos += 1
             dst.extend(data)
             dstPos += length
+
+        # copy a chunk of data from dynamic LUT to dst
+        # chunk number is a single byte that follows tok
+        # It will be adjusted to chunk_num + 256 + 40
         elif tok == 0x21:
             data, length = var_tab[src[pos] + 256 + 40]
             pos += 1
             dst.extend(data)
             dstPos += length
+
+        # copy a chunk of data from dynamic LUT to dst
+        # chunk number is tok - 35
         elif tok >= 0x23 and tok <= 0x4A:
             data, length = var_tab[tok - 0x23]
             dst.extend(data)
             dstPos += length
+
+        # copy a word from constant LUT to dst
+        # word number is tok - 75
         elif tok >= 0x4B and tok <= 0xFD:
             const_word = const_words_tab[tok - 0x4B]
             PutWord(dst, const_word)
             dstPos += 2
-        elif tok == 0xFE:
-            ext_op = src[pos]
+
+        elif tok == 0xFE: # extended bytecodes
+            ext_op = src[pos] # get extended opcode
             pos += 1
-            if ext_op == 0:
+
+            if ext_op == 0: # populate JumpTable for Mac 68k code resources
+                # get segment number and number of JT entries
                 seg_num, size = GetVarLenInt(src, pos)
                 pos += size
                 num_entries, size = GetVarLenInt(src, pos)
                 pos += size
+
+                # populate 68k machine code for each table entry
                 offset = 6
                 for i in range(0, num_entries):
                     PutWord(dst, 0x3F3C)
@@ -145,11 +186,14 @@ def DonnDecompress(src, dst, unpackSize, pos=0):
                     offset = SignExtend(offset + delta - 6, 16)
                     PutWord(dst, offset)
                     dstPos += 8
+
+                # populate 68k machine code for the last entry
                 PutWord(dst, 0x3F3C)
                 PutWord(dst, seg_num)
                 PutWord(dst, 0xA9F0)
                 dstPos += 6
-            elif ext_op == 3:
+
+            elif ext_op == 3: # run-length decoding
                 val, size = GetVarLenInt(src, pos)
                 pos += size
                 rep_count, size = GetVarLenInt(src, pos)
@@ -160,24 +204,32 @@ def DonnDecompress(src, dst, unpackSize, pos=0):
                 for i in range(0, rep_count + 1):
                     PutWord(dst, val)
                     dstPos += 2
-            elif ext_op == 4:
+
+            elif ext_op == 4: # differential coding with byte deltas
+                # get initial value and repeat count
                 val, size = GetVarLenInt(src, pos)
                 pos += size
                 rep_count, size = GetVarLenInt(src, pos)
                 pos += size
-                PutWord(dst, val)
+
+                PutWord(dst, val) # put the initial value into dst
                 dstPos += 2
+
+                # for each rep_count, val = val + delta
                 for i in range(0, rep_count):
                     val = val + SignExtend(src[pos+i], 8)
                     PutWord(dst, val)
                     dstPos += 2
-                pos += rep_count
+
+                pos += rep_count # leave the input stream in a consistent state
+
             else:
                 print("Unsupported extension algorithm %d" % ext_op)
                 return
-        elif tok == 0xFF:
-            # terminate decompression
+
+        elif tok == 0xFF: # terminate decompression
             return
+
         else:
             print("Unsupported token 0x%X encountered" % tok)
             return
